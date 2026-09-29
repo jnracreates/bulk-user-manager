@@ -1,0 +1,11 @@
+name: "Bulk User Manager"
+guid: "3c4bc326-efd0-4b7d-b332-014c417e2858"
+version: "1.0.0.0"
+targetAbi: "12.0.0.0"
+framework: "net10.0"
+overview: "Mass-edit user settings and set defaults for new users."
+description: "Allows administrators to bulk-update library order, home, playback, and subtitle settings for multiple users, and to define defaults applied to newly created users."
+category: "Administration"
+owner: "jnra"
+artifacts:
+  - "Jellyfin.Plugin.BulkUserManager.dll"

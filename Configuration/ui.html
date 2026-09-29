@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Bulk User Manager</title>
+<style>
+    body { font-family: sans-serif; padding: 1em; color: #ddd; background: #101010; margin: 0; }
+    .tab { overflow: hidden; border-bottom: 1px solid #444; margin-bottom: 1em; }
+    .tab button { background: none; border: none; color: #aaa; padding: 0.7em 1.2em; cursor: pointer; font-size: 1em; }
+    .tab button.active { color: #fff; border-bottom: 3px solid #00a4dc; }
+    .section { display: none; }
+    .section.active { display: block; }
+    label { display: block; margin: 0.5em 0 0.2em; }
+    select, input[type="text"] { padding: 0.3em; min-width: 300px; background: #222; color: #eee; border: 1px solid #444; }
+    select.tri { min-width: 180px; }
+    .checkbox-row { margin: 0.4em 0; }
+    .checkbox-row input { margin-right: 0.5em; }
+    .user-list { max-height: 220px; overflow-y: auto; border: 1px solid #444; padding: 0.5em; margin: 0.5em 0; }
+    .library-list { list-style: none; padding: 0; margin: 0.5em 0; max-width: 500px; }
+    .library-list li { display: flex; align-items: center; padding: 0.4em 0.6em; margin: 0.2em 0; background: #222; border: 1px solid #444; }
+    .library-list li .name { flex: 1; }
+    .library-list li button { background: #333; color: #ddd; border: 1px solid #555; margin-left: 0.3em; padding: 0.2em 0.6em; cursor: pointer; }
+    .library-list li button:hover { background: #00a4dc; color: #fff; }
+    .library-list li button:disabled { opacity: 0.3; cursor: default; }
+    .check-list { border: 1px solid #444; padding: 0.5em; max-height: 240px; overflow-y: auto; max-width: 500px; }
+    .check-list label { margin: 0.25em 0; }
+    button.primary { background: #00a4dc; color: #fff; border: none; padding: 0.6em 1.5em; cursor: pointer; margin-top: 1em; }
+    button.primary:hover { background: #0088b5; }
+    button.primary:disabled { background: #555; cursor: not-allowed; }
+    button.secondary { background: #333; color: #ddd; border: 1px solid #555; padding: 0.3em 0.8em; cursor: pointer; margin-left: 0.3em; }
+    button.secondary:hover { background: #444; }
+    .status { margin-top: 0.8em; color: #7f7; }
+    .log { margin-top: 0.8em; padding: 0.5em; background: #1a1a1a; border: 1px solid #333; font-family: monospace; font-size: 0.85em; color: #aaa; max-height: 180px; overflow-y: auto; white-space: pre-wrap; }
+    .filter-row { margin-bottom: 0.3em; }
+    .filter-row input { min-width: 200px; }
+    .field-group { margin-bottom: 0.5em; }
+    .warn { color: #f88; font-weight: bold; }
+    .badge { display: inline-block; padding: 0 0.4em; margin-left: 0.4em; font-size: 0.75em; border-radius: 3px; vertical-align: middle; }
+    .badge-admin { background: #b31c1c; color: #fff; }
+    .badge-disabled { background: #666; color: #eee; }
+    h3 { margin-top: 1.4em; margin-bottom: 0.4em; color: #ccc; border-bottom: 1px solid #333; padding-bottom: 0.2em; }
+    .perm-hint { color: #888; font-size: 0.85em; margin: 0.2em 0 0.6em; }
+</style>
+</head>
+<body>
+
+<h1>Bulk User Manager</h1>
+
+<div class="tab">
+    <button class="tablinks active" onclick="showTab(event, 'massEdit')">Mass Edit</button>
+    <button class="tablinks" onclick="showTab(event, 'permissions')">Permissions</button>
+    <button class="tablinks" onclick="showTab(event, 'defaults')">Defaults</button>
+</div>
+
+<!-- ==================== MASS EDIT TAB ==================== -->
+<div id="massEdit" class="section active">
+    <h2>Mass Edit User Settings</h2>
+    <label>Select users:</label>
+    <div class="filter-row">
+        <input type="text" id="userFilter" placeholder="Filter users..." oninput="filterUsers('userList','userFilter')" />
+        <button type="button" class="secondary" onclick="toggleAllVisible('userList', true)">Select all visible</button>
+        <button type="button" class="secondary" onclick="toggleAllVisible('userList', false)">Clear all</button>
+    </div>
+    <div class="user-list" id="userList"></div>
+
+    <label>Library order (use arrows to reorder):</label>
+    <ul class="library-list" id="libraryOrder"></ul>
+
+    <h3>Playback</h3>
+    <div class="field-group">
+        <label>Audio language preference:</label>
+        <select id="txtAudioLang"><option value="">(no change)</option></select>
+    </div>
+    <div class="checkbox-row"><input type="checkbox" id="chkPlayDefaultAudioTrack"> Play default audio track</div>
+    <div class="checkbox-row"><input type="checkbox" id="chkRememberAudioSelections"> Remember audio selections</div>
+    <div class="checkbox-row"><input type="checkbox" id="chkEnableNextEpisodeAutoPlay"> Enable next episode auto play</div>
+
+    <h3>Subtitles</h3>
+    <div class="field-group">
+        <label>Subtitle mode:</label>
+        <select id="selSubtitleMode">
+            <option value="">(no change)</option>
+            <option value="0">Default</option>
+            <option value="1">Always</option>
+            <option value="2">Only Forced</option>
+            <option value="3">None</option>
+            <option value="4">Smart</option>
+        </select>
+    </div>
+    <div class="field-group">
+        <label>Subtitle language preference:</label>
+        <select id="txtSubLang"><option value="">(no change)</option></select>
+    </div>
+    <div class="checkbox-row"><input type="checkbox" id="chkRememberSubtitleSelections"> Remember subtitle selections</div>
+
+    <button class="primary" id="applyMassBtn" onclick="applyMassEdit()">Apply to Selected Users</button>
+    <div class="status" id="massStatus"></div>
+    <div class="log" id="massLog" style="display:none;"></div>
+</div>
+
+<!-- ==================== PERMISSIONS TAB ==================== -->
+<div id="permissions" class="section">
+    <h2>Mass Edit Permissions</h2>
+    <p class="perm-hint">Every dropdown defaults to "no change". Only fields you explicitly set are written.</p>
+    <label>Select users:</label>
+    <div class="filter-row">
+        <input type="text" id="permUserFilter" placeholder="Filter users..." oninput="filterUsers('permUserList','permUserFilter')" />
+        <button type="button" class="secondary" onclick="toggleAllVisible('permUserList', true)">Select all visible</button>
+        <button type="button" class="secondary" onclick="toggleAllVisible('permUserList', false)">Clear all</button>
+    </div>
+    <div class="user-list" id="permUserList"></div>
+
+    <h3>Account</h3>
+    <div class="field-group">
+        <label>Administrator: <span class="warn">&#9888; grants full server control</span></label>
+        <select id="polIsAdministrator" class="tri">
+            <option value="">(no change)</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+        </select>
+    </div>
+    <div class="field-group">
+        <label>Hidden from login screen:</label>
+        <select id="polIsHidden" class="tri">
+            <option value="">(no change)</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+        </select>
+    </div>
+    <div class="field-group">
+        <label>Account disabled: <span class="warn">&#9888; user cannot sign in</span></label>
+        <select id="polIsDisabled" class="tri">
+            <option value="">(no change)</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+        </select>
+    </div>
+
+    <h3>Library Access</h3>
+    <div class="field-group">
+        <label>Library access mode:</label>
+        <select id="polLibraryMode" onchange="onLibraryModeChange()">
+            <option value="">(no change)</option>
+            <option value="all">All libraries</option>
+            <option value="specific">Only selected libraries</option>
+        </select>
+    </div>
+    <div id="polLibraryListWrap" style="display:none;">
+        <div class="check-list" id="polLibraryList"></div>
+    </div>
+
+    <h3>Feature Access</h3>
+    <div class="field-group">
+        <label>Content downloading:</label>
+        <select id="polEnableContentDownloading" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Media playback:</label>
+        <select id="polEnableMediaPlayback" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Audio playback transcoding:</label>
+        <select id="polEnableAudioPlaybackTranscoding" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Video playback transcoding:</label>
+        <select id="polEnableVideoPlaybackTranscoding" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Playback remuxing:</label>
+        <select id="polEnablePlaybackRemuxing" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Live TV access:</label>
+        <select id="polEnableLiveTvAccess" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Live TV management:</label>
+        <select id="polEnableLiveTvManagement" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Remote access:</label>
+        <select id="polEnableRemoteAccess" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Shared device control:</label>
+        <select id="polEnableSharedDeviceControl" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Sync transcoding:</label>
+        <select id="polEnableSyncTranscoding" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Subtitle management:</label>
+        <select id="polEnableSubtitleManagement" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Lyric management:</label>
+        <select id="polEnableLyricManagement" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>Collection management:</label>
+        <select id="polEnableCollectionManagement" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+    <div class="field-group">
+        <label>User preference access:</label>
+        <select id="polEnableUserPreferenceAccess" class="tri"><option value="">(no change)</option><option value="true">Yes</option><option value="false">No</option></select>
+    </div>
+
+    <button class="primary" id="applyPermBtn" onclick="applyPermissions()">Apply Permissions to Selected Users</button>
+    <div class="status" id="permStatus"></div>
+    <div class="log" id="permLog" style="display:none;"></div>
+</div>
+
+<!-- ==================== DEFAULTS TAB ==================== -->
+<div id="defaults" class="section">
+    <h2>Defaults for New Users</h2>
+    <p>These settings are stored in the plugin configuration and can be applied to all users.</p>
+
+    <h3>User Settings</h3>
+    <label>Default library order:</label>
+    <ul class="library-list" id="defLibraryOrder"></ul>
+
+    <div class="field-group">
+        <label>Audio language preference:</label>
+        <select id="defAudioLang"><option value="">(none)</option></select>
+    </div>
+    <div class="checkbox-row"><input type="checkbox" id="defPlayDefaultAudioTrack"> Play default audio track</div>
+    <div class="checkbox-row"><input type="checkbox" id="defRememberAudioSelections"> Remember audio selections</div>
+    <div class="checkbox-row"><input type="checkbox" id="defEnableNextEpisodeAutoPlay"> Enable next episode auto play</div>
+
+    <div class="field-group">
+        <label>Subtitle mode:</label>
+        <select id="defSubtitleMode">
+            <option value="0">Default</option>
+            <option value="1">Always</option>
+            <option value="2">Only Forced</option>
+            <option value="3">None</option>
+            <option value="4">Smart</option>
+        </select>
+    </div>
+    <div class="field-group">
+        <label>Subtitle language preference:</label>
+        <select id="defSubLang"><option value="">(none)</option></select>
+    </div>
+    <div class="checkbox-row"><input type="checkbox" id="defRememberSubtitleSelections"> Remember subtitle selections</div>
+
+    <h3>Default Permissions</h3>
+    <div class="checkbox-row"><input type="checkbox" id="defPolIsAdministrator"> <span class="warn">Administrator</span></div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolIsHidden"> Hidden from login screen</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolIsDisabled"> <span class="warn">Account disabled</span></div>
+
+    <label>Library access:</label>
+    <select id="defPolLibraryMode" onchange="onDefLibraryModeChange()">
+        <option value="all">All libraries</option>
+        <option value="specific">Only selected libraries</option>
+    </select>
+    <div id="defPolLibraryListWrap" style="display:none;">
+        <div class="check-list" id="defPolLibraryList"></div>
+    </div>
+
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableContentDownloading"> Content downloading</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableMediaPlayback"> Media playback</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableAudioPlaybackTranscoding"> Audio playback transcoding</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableVideoPlaybackTranscoding"> Video playback transcoding</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnablePlaybackRemuxing"> Playback remuxing</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableLiveTvAccess"> Live TV access</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableLiveTvManagement"> Live TV management</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableRemoteAccess"> Remote access</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableSharedDeviceControl"> Shared device control</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableSyncTranscoding"> Sync transcoding</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableSubtitleManagement"> Subtitle management</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableLyricManagement"> Lyric management</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableCollectionManagement"> Collection management</div>
+    <div class="checkbox-row"><input type="checkbox" id="defPolEnableUserPreferenceAccess"> User preference access</div>
+
+    <button class="primary" id="saveDefaultsBtn" onclick="saveDefaults()">Save Defaults</button>
+    <button class="primary" id="applyDefaultsBtn" onclick="applyDefaultsToAll()">Apply User Defaults to All Users</button>
+    <button class="primary" id="applyPolDefaultsBtn" onclick="applyPolicyDefaultsToAll()">Apply Permission Defaults to All Users</button>
+
+    <h3>Backup</h3>
+    <p class="perm-hint">Download a JSON snapshot of every user's settings and permissions before making bulk changes. Keep it somewhere safe &mdash; it is the only way to recover if a mass update goes wrong.</p>
+    <button class="primary" id="backupBtn" onclick="downloadBackup()" style="background:#4a7c4e;">Download User Backup (JSON)</button>
+
+    <h3>Restore</h3>
+    <p class="perm-hint">Upload a previously downloaded backup file to overwrite current settings with the values from the backup. Use this to undo a bad mass update. <strong>This is destructive</strong> &mdash; it replaces every matching user's configuration and permissions with what the backup contains.</p>
+    <input type="file" id="restoreFile" accept="application/json,.json" style="display:block; margin:0.5em 0; color:#ddd;" />
+    <button class="primary" id="restorePreviewBtn" onclick="previewRestore()" disabled>Preview Restore</button>
+    <button class="primary" id="restoreApplyBtn" onclick="applyRestore()" disabled style="background:#b31c1c;">Confirm Restore</button>
+    <div class="status" id="restoreStatus"></div>
+    <div id="restorePreview" class="log" style="display:none;"></div>
+
+    <div class="status" id="defStatus"></div>
+</div>
+
+<script>
+(function () {
+    var pluginId = "3c4bc326-efd0-4b7d-b332-014c417e2858";
+    var cachedViews = null;
+    var langCultures = null;
+    var restoreBackup = null;
+
+    function getApiClient() {
+        if (window.ApiClient) return window.ApiClient;
+        if (window.parent && window.parent.ApiClient) return window.parent.ApiClient;
+        if (window.top && window.top.ApiClient) return window.top.ApiClient;
+        if (window.parent && window.parent.Dashboard && window.parent.Dashboard.apiClient) return window.parent.Dashboard.apiClient;
+        return null;
+    }
+
+    window.showTab = function (evt, id) {
+        document.querySelectorAll(".section").forEach(function (s) { s.classList.remove("active"); });
+        document.querySelectorAll(".tablinks").forEach(function (b) { b.classList.remove("active"); });
+        document.getElementById(id).classList.add("active");
+        evt.currentTarget.classList.add("active");
+    };
+
+    function logTo(elId, msg) {
+        var el = document.getElementById(elId);
+        el.style.display = "block";
+        el.textContent = msg;
+    }
+
+    window.toggleAllVisible = function (listId, checked) {
+        document.querySelectorAll("#" + listId + " input[type=checkbox]").forEach(function (cb) {
+            var lbl = cb.closest("label");
+            if (lbl.style.display !== "none") { cb.checked = checked; }
+        });
+    };
+
+    window.filterUsers = function (listId, filterId) {
+        var q = document.getElementById(filterId).value.toLowerCase();
+        document.querySelectorAll("#" + listId + " label").forEach(function (lbl) {
+            var name = lbl.textContent.toLowerCase();
+            lbl.style.display = (q === "" || name.indexOf(q) !== -1) ? "" : "none";
+        });
+    };
+
+    async function loadCultures(apiClient) {
+        try {
+            langCultures = await apiClient.ajax({
+                type: "GET", url: apiClient.getUrl("Localization/Cultures"), dataType: "json"
+            });
+        } catch (e) {
+            langCultures = [
+                { ThreeLetterISOLanguageName: "eng", DisplayName: "English" },
+                { ThreeLetterISOLanguageName: "spa", DisplayName: "Spanish" },
+                { ThreeLetterISOLanguageName: "fre", DisplayName: "French" },
+                { ThreeLetterISOLanguageName: "ger", DisplayName: "German" },
+                { ThreeLetterISOLanguageName: "jpn", DisplayName: "Japanese" },
+                { ThreeLetterISOLanguageName: "chi", DisplayName: "Chinese" }
+            ];
+        }
+    }
+
+    function populateLangSelect(id, emptyLabel) {
+        var sel = document.getElementById(id);
+        while (sel.options.length > 0) { sel.remove(0); }
+        var first = document.createElement("option");
+        first.value = ""; first.textContent = emptyLabel;
+        sel.appendChild(first);
+        if (!langCultures) { return; }
+        langCultures.slice().sort(function (a, b) {
+            var an = (a.DisplayName || a.Name || "").toLowerCase();
+            var bn = (b.DisplayName || b.Name || "").toLowerCase();
+            return an < bn ? -1 : an > bn ? 1 : 0;
+        }).forEach(function (c) {
+            var code = c.ThreeLetterISOLanguageName;
+            if (!code) { return; }
+            var o = document.createElement("option");
+            o.value = code;
+            o.textContent = (c.DisplayName || c.Name || code) + " (" + code + ")";
+            sel.appendChild(o);
+        });
+    }
+
+    async function loadUsersIntoList(apiClient, listId) {
+        var resp = await apiClient.ajax({
+            type: "GET", url: apiClient.getUrl("BulkUserManager/Users"), dataType: "json"
+        });
+        var container = document.getElementById(listId);
+        container.innerHTML = "";
+        resp.forEach(function (u) {
+            var label = document.createElement("label");
+            label.className = "checkbox-row";
+            var html = '<input type="checkbox" value="' + u.Id + '"> ' + u.Username;
+            if (u.IsAdministrator) html += ' <span class="badge badge-admin">admin</span>';
+            if (u.IsDisabled) html += ' <span class="badge badge-disabled">disabled</span>';
+            label.innerHTML = html;
+            container.appendChild(label);
+        });
+    }
+
+    function buildLibraryList(listId, orderedIds) {
+        if (!cachedViews) { return; }
+        var list = document.getElementById(listId);
+        list.innerHTML = "";
+        var orderedViews = cachedViews.slice();
+        if (orderedIds && orderedIds.length) {
+            var byId = {};
+            cachedViews.forEach(function (v) { byId[v.Id] = v; });
+            orderedViews = [];
+            orderedIds.forEach(function (id) {
+                if (byId[id]) { orderedViews.push(byId[id]); delete byId[id]; }
+            });
+            Object.keys(byId).forEach(function (id) { orderedViews.push(byId[id]); });
+        }
+        orderedViews.forEach(function (v) {
+            var li = document.createElement("li");
+            li.dataset.id = v.Id;
+            li.innerHTML = '<span class="name">' + v.Name + '</span>' +
+                '<button type="button" onclick="moveUp(this)">&#9650;</button>' +
+                '<button type="button" onclick="moveDown(this)">&#9660;</button>';
+            list.appendChild(li);
+        });
+        refreshArrowStates(list);
+    }
+
+    function buildLibraryCheckboxes(containerId, preselectedIds) {
+        if (!cachedViews) { return; }
+        var c = document.getElementById(containerId);
+        c.innerHTML = "";
+        var set = {};
+        (preselectedIds || []).forEach(function (id) { set[id] = true; });
+        cachedViews.forEach(function (v) {
+            var lbl = document.createElement("label");
+            lbl.className = "checkbox-row";
+            lbl.innerHTML = '<input type="checkbox" value="' + v.Id + '"' + (set[v.Id] ? ' checked' : '') + '> ' + v.Name;
+            c.appendChild(lbl);
+        });
+    }
+
+    function readCheckedIds(containerId) {
+        return Array.from(document.querySelectorAll("#" + containerId + " input[type=checkbox]:checked"))
+            .map(function (cb) { return cb.value; });
+    }
+
+    async function loadLibraries(apiClient) {
+        var views = await apiClient.getUserViews();
+        cachedViews = views.Items;
+        buildLibraryList("libraryOrder", null);
+        buildLibraryCheckboxes("polLibraryList", null);
+        buildLibraryCheckboxes("defPolLibraryList", null);
+    }
+
+    window.onLibraryModeChange = function () {
+        var mode = document.getElementById("polLibraryMode").value;
+        document.getElementById("polLibraryListWrap").style.display = (mode === "specific") ? "" : "none";
+    };
+
+    window.onDefLibraryModeChange = function () {
+        var mode = document.getElementById("defPolLibraryMode").value;
+        document.getElementById("defPolLibraryListWrap").style.display = (mode === "specific") ? "" : "none";
+    };
+
+    async function loadDefaults(apiClient) {
+        var config = await apiClient.getPluginConfiguration(pluginId);
+        var d = config.Defaults || {};
+        var p = config.PolicyDefaults || {};
+
+        document.getElementById("defPlayDefaultAudioTrack").checked = d.PlayDefaultAudioTrack != null ? d.PlayDefaultAudioTrack : true;
+        setSelectValue("defAudioLang", d.AudioLanguagePreference || "");
+        document.getElementById("defRememberAudioSelections").checked = d.RememberAudioSelections != null ? d.RememberAudioSelections : true;
+        document.getElementById("defEnableNextEpisodeAutoPlay").checked = d.EnableNextEpisodeAutoPlay != null ? d.EnableNextEpisodeAutoPlay : true;
+        document.getElementById("defSubtitleMode").value = d.SubtitleMode != null ? String(d.SubtitleMode) : "0";
+        setSelectValue("defSubLang", d.SubtitleLanguagePreference || "");
+        document.getElementById("defRememberSubtitleSelections").checked = d.RememberSubtitleSelections != null ? d.RememberSubtitleSelections : true;
+        buildLibraryList("defLibraryOrder", d.OrderedViews);
+
+        document.getElementById("defPolIsAdministrator").checked = !!p.IsAdministrator;
+        document.getElementById("defPolIsHidden").checked = !!p.IsHidden;
+        document.getElementById("defPolIsDisabled").checked = !!p.IsDisabled;
+        var mode = p.EnableAllFolders ? "all" : "specific";
+        document.getElementById("defPolLibraryMode").value = mode;
+        onDefLibraryModeChange();
+        buildLibraryCheckboxes("defPolLibraryList", p.EnabledFolders || []);
+        document.getElementById("defPolEnableContentDownloading").checked = p.EnableContentDownloading != null ? p.EnableContentDownloading : true;
+        document.getElementById("defPolEnableMediaPlayback").checked = p.EnableMediaPlayback != null ? p.EnableMediaPlayback : true;
+        document.getElementById("defPolEnableAudioPlaybackTranscoding").checked = p.EnableAudioPlaybackTranscoding != null ? p.EnableAudioPlaybackTranscoding : true;
+        document.getElementById("defPolEnableVideoPlaybackTranscoding").checked = p.EnableVideoPlaybackTranscoding != null ? p.EnableVideoPlaybackTranscoding : true;
+        document.getElementById("defPolEnablePlaybackRemuxing").checked = p.EnablePlaybackRemuxing != null ? p.EnablePlaybackRemuxing : true;
+        document.getElementById("defPolEnableLiveTvAccess").checked = p.EnableLiveTvAccess != null ? p.EnableLiveTvAccess : true;
+        document.getElementById("defPolEnableLiveTvManagement").checked = !!p.EnableLiveTvManagement;
+        document.getElementById("defPolEnableRemoteAccess").checked = p.EnableRemoteAccess != null ? p.EnableRemoteAccess : true;
+        document.getElementById("defPolEnableSharedDeviceControl").checked = p.EnableSharedDeviceControl != null ? p.EnableSharedDeviceControl : true;
+        document.getElementById("defPolEnableSyncTranscoding").checked = p.EnableSyncTranscoding != null ? p.EnableSyncTranscoding : true;
+        document.getElementById("defPolEnableSubtitleManagement").checked = !!p.EnableSubtitleManagement;
+        document.getElementById("defPolEnableLyricManagement").checked = !!p.EnableLyricManagement;
+        document.getElementById("defPolEnableCollectionManagement").checked = !!p.EnableCollectionManagement;
+        document.getElementById("defPolEnableUserPreferenceAccess").checked = p.EnableUserPreferenceAccess != null ? p.EnableUserPreferenceAccess : true;
+    }
+
+    function setSelectValue(id, value) {
+        var sel = document.getElementById(id);
+        if (!sel) { return; }
+        var found = false;
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === value) { found = true; break; }
+        }
+        if (!found && value) {
+            var o = document.createElement("option");
+            o.value = value; o.textContent = value + " (unknown)";
+            sel.appendChild(o);
+        }
+        sel.value = value || "";
+    }
+
+    window.moveUp = function (btn) {
+        var li = btn.closest("li");
+        var prev = li.previousElementSibling;
+        if (prev) { li.parentNode.insertBefore(li, prev); refreshArrowStates(li.parentNode); }
+    };
+    window.moveDown = function (btn) {
+        var li = btn.closest("li");
+        var next = li.nextElementSibling;
+        if (next) { li.parentNode.insertBefore(next, li); refreshArrowStates(li.parentNode); }
+    };
+    function refreshArrowStates(list) {
+        if (!list) { return; }
+        var items = list.querySelectorAll("li");
+        items.forEach(function (li, i) {
+            var buttons = li.querySelectorAll("button");
+            buttons[0].disabled = (i === 0);
+            buttons[1].disabled = (i === items.length - 1);
+        });
+    }
+
+    function setBusy(btnId, busy, label) {
+        var btn = document.getElementById(btnId);
+        if (!btn) { return; }
+        if (busy) {
+            btn.dataset.originalText = btn.textContent;
+            btn.textContent = label || "Working...";
+            btn.disabled = true;
+        } else {
+            btn.textContent = btn.dataset.originalText || btn.textContent;
+            btn.disabled = false;
+        }
+    }
+
+    function readTri(id) {
+        var v = document.getElementById(id).value;
+        if (v === "") return null;
+        return v === "true";
+    }
+
+    window.applyMassEdit = async function () {
+        var apiClient = getApiClient();
+        var userIds = Array.from(document.querySelectorAll("#userList input:checked")).map(function (c) { return c.value; });
+        if (userIds.length === 0) { document.getElementById("massStatus").textContent = "Select at least one user."; return; }
+        var orderedViews = Array.from(document.querySelectorAll("#libraryOrder li")).map(function (li) { return li.dataset.id; });
+        var subMode = document.getElementById("selSubtitleMode").value;
+        var body = {
+            UserIds: userIds,
+            OrderedViews: orderedViews,
+            PlayDefaultAudioTrack: document.getElementById("chkPlayDefaultAudioTrack").checked,
+            AudioLanguagePreference: document.getElementById("txtAudioLang").value || null,
+            RememberAudioSelections: document.getElementById("chkRememberAudioSelections").checked,
+            EnableNextEpisodeAutoPlay: document.getElementById("chkEnableNextEpisodeAutoPlay").checked,
+            SubtitleMode: subMode === "" ? null : parseInt(subMode),
+            SubtitleLanguagePreference: document.getElementById("txtSubLang").value || null,
+            RememberSubtitleSelections: document.getElementById("chkRememberSubtitleSelections").checked
+        };
+        logTo("massLog", "POST /BulkUserManager/MassUpdate\n" + JSON.stringify(body, null, 2));
+        setBusy("applyMassBtn", true, "Applying...");
+        try {
+            var result = await apiClient.ajax({
+                type: "POST", url: apiClient.getUrl("BulkUserManager/MassUpdate"),
+                data: JSON.stringify(body), contentType: "application/json", dataType: "json"
+            });
+            document.getElementById("massStatus").textContent = "Updated " + (result.Updated || 0) + " users.";
+        } catch (e) {
+            document.getElementById("massStatus").textContent = "Error: " + (e && e.message ? e.message : e);
+        } finally {
+            setBusy("applyMassBtn", false);
+        }
+    };
+
+    window.applyPermissions = async function () {
+        var apiClient = getApiClient();
+        var userIds = Array.from(document.querySelectorAll("#permUserList input:checked")).map(function (c) { return c.value; });
+        if (userIds.length === 0) { document.getElementById("permStatus").textContent = "Select at least one user."; return; }
+
+        var adminVal = readTri("polIsAdministrator");
+        if (adminVal === true) {
+            if (!confirm("You are about to grant administrator rights to " + userIds.length + " user(s). Continue?")) { return; }
+        }
+        var disabledVal = readTri("polIsDisabled");
+        if (disabledVal === true) {
+            if (!confirm("You are about to DISABLE " + userIds.length + " user account(s). Continue?")) { return; }
+        }
+
+        var libMode = document.getElementById("polLibraryMode").value;
+        var enableAll = null;
+        var enabledFolders = null;
+        if (libMode === "all") { enableAll = true; enabledFolders = []; }
+        else if (libMode === "specific") { enableAll = false; enabledFolders = readCheckedIds("polLibraryList"); }
+
+        var body = {
+            UserIds: userIds,
+            IsAdministrator: adminVal,
+            IsHidden: readTri("polIsHidden"),
+            IsDisabled: disabledVal,
+            EnableAllFolders: enableAll,
+            EnabledFolders: enabledFolders,
+            EnableContentDownloading: readTri("polEnableContentDownloading"),
+            EnableMediaPlayback: readTri("polEnableMediaPlayback"),
+            EnableAudioPlaybackTranscoding: readTri("polEnableAudioPlaybackTranscoding"),
+            EnableVideoPlaybackTranscoding: readTri("polEnableVideoPlaybackTranscoding"),
+            EnablePlaybackRemuxing: readTri("polEnablePlaybackRemuxing"),
+            EnableLiveTvAccess: readTri("polEnableLiveTvAccess"),
+            EnableLiveTvManagement: readTri("polEnableLiveTvManagement"),
+            EnableRemoteAccess: readTri("polEnableRemoteAccess"),
+            EnableSharedDeviceControl: readTri("polEnableSharedDeviceControl"),
+            EnableSyncTranscoding: readTri("polEnableSyncTranscoding"),
+            EnableSubtitleManagement: readTri("polEnableSubtitleManagement"),
+            EnableLyricManagement: readTri("polEnableLyricManagement"),
+            EnableCollectionManagement: readTri("polEnableCollectionManagement"),
+            EnableUserPreferenceAccess: readTri("polEnableUserPreferenceAccess")
+        };
+        logTo("permLog", "POST /BulkUserManager/MassPolicyUpdate\n" + JSON.stringify(body, null, 2));
+        setBusy("applyPermBtn", true, "Applying...");
+        try {
+            var result = await apiClient.ajax({
+                type: "POST", url: apiClient.getUrl("BulkUserManager/MassPolicyUpdate"),
+                data: JSON.stringify(body), contentType: "application/json", dataType: "json"
+            });
+            document.getElementById("permStatus").textContent = "Updated " + (result.Updated || 0) + " users.";
+            loadUsersIntoList(apiClient, "permUserList").catch(function () {});
+            loadUsersIntoList(apiClient, "userList").catch(function () {});
+        } catch (e) {
+            document.getElementById("permStatus").textContent = "Error: " + (e && e.message ? e.message : e);
+        } finally {
+            setBusy("applyPermBtn", false);
+        }
+    };
+
+    function readPolicyDefaults() {
+        var mode = document.getElementById("defPolLibraryMode").value;
+        return {
+            IsAdministrator: document.getElementById("defPolIsAdministrator").checked,
+            IsHidden: document.getElementById("defPolIsHidden").checked,
+            IsDisabled: document.getElementById("defPolIsDisabled").checked,
+            EnableAllFolders: mode === "all",
+            EnabledFolders: mode === "specific" ? readCheckedIds("defPolLibraryList") : [],
+            EnableContentDownloading: document.getElementById("defPolEnableContentDownloading").checked,
+            EnableMediaPlayback: document.getElementById("defPolEnableMediaPlayback").checked,
+            EnableAudioPlaybackTranscoding: document.getElementById("defPolEnableAudioPlaybackTranscoding").checked,
+            EnableVideoPlaybackTranscoding: document.getElementById("defPolEnableVideoPlaybackTranscoding").checked,
+            EnablePlaybackRemuxing: document.getElementById("defPolEnablePlaybackRemuxing").checked,
+            EnableLiveTvAccess: document.getElementById("defPolEnableLiveTvAccess").checked,
+            EnableLiveTvManagement: document.getElementById("defPolEnableLiveTvManagement").checked,
+            EnableRemoteAccess: document.getElementById("defPolEnableRemoteAccess").checked,
+            EnableSharedDeviceControl: document.getElementById("defPolEnableSharedDeviceControl").checked,
+            EnableSyncTranscoding: document.getElementById("defPolEnableSyncTranscoding").checked,
+            EnableSubtitleManagement: document.getElementById("defPolEnableSubtitleManagement").checked,
+            EnableLyricManagement: document.getElementById("defPolEnableLyricManagement").checked,
+            EnableCollectionManagement: document.getElementById("defPolEnableCollectionManagement").checked,
+            EnableUserPreferenceAccess: document.getElementById("defPolEnableUserPreferenceAccess").checked
+        };
+    }
+
+    window.saveDefaults = async function () {
+        var apiClient = getApiClient();
+        var orderedViews = Array.from(document.querySelectorAll("#defLibraryOrder li")).map(function (li) { return li.dataset.id; });
+        var body = {
+            OrderedViews: orderedViews,
+            PlayDefaultAudioTrack: document.getElementById("defPlayDefaultAudioTrack").checked,
+            AudioLanguagePreference: document.getElementById("defAudioLang").value || null,
+            RememberAudioSelections: document.getElementById("defRememberAudioSelections").checked,
+            EnableNextEpisodeAutoPlay: document.getElementById("defEnableNextEpisodeAutoPlay").checked,
+            SubtitleMode: parseInt(document.getElementById("defSubtitleMode").value),
+            SubtitleLanguagePreference: document.getElementById("defSubLang").value || null,
+            RememberSubtitleSelections: document.getElementById("defRememberSubtitleSelections").checked
+        };
+        setBusy("saveDefaultsBtn", true, "Saving...");
+        try {
+            await apiClient.ajax({
+                type: "POST", url: apiClient.getUrl("BulkUserManager/SaveDefaults"),
+                data: JSON.stringify(body), contentType: "application/json", dataType: "json"
+            });
+            var policyBody = readPolicyDefaults();
+            await apiClient.ajax({
+                type: "POST", url: apiClient.getUrl("BulkUserManager/SavePolicyDefaults"),
+                data: JSON.stringify(policyBody), contentType: "application/json", dataType: "json"
+            });
+            document.getElementById("defStatus").textContent = "Defaults saved.";
+        } catch (e) {
+            document.getElementById("defStatus").textContent = "Error: " + (e && e.message ? e.message : e);
+        } finally {
+            setBusy("saveDefaultsBtn", false);
+        }
+    };
+
+    window.applyDefaultsToAll = async function () {
+        var apiClient = getApiClient();
+        setBusy("applyDefaultsBtn", true, "Applying...");
+        try {
+            await apiClient.ajax({
+                type: "POST", url: apiClient.getUrl("BulkUserManager/ApplyDefaultsToAll"), dataType: "json"
+            });
+            document.getElementById("defStatus").textContent = "User defaults applied to all users.";
+        } catch (e) {
+            document.getElementById("defStatus").textContent = "Error: " + (e && e.message ? e.message : e);
+        } finally {
+            setBusy("applyDefaultsBtn", false);
+        }
+    };
+
+    window.applyPolicyDefaultsToAll = async function () {
+        if (!confirm("This will overwrite permission settings on ALL users. Continue?")) { return; }
+        var apiClient = getApiClient();
+        setBusy("applyPolDefaultsBtn", true, "Applying...");
+        try {
+            await apiClient.ajax({
+                type: "POST", url: apiClient.getUrl("BulkUserManager/ApplyPolicyDefaultsToAll"), dataType: "json"
+            });
+            document.getElementById("defStatus").textContent = "Permission defaults applied to all users.";
+            loadUsersIntoList(apiClient, "permUserList").catch(function () {});
+            loadUsersIntoList(apiClient, "userList").catch(function () {});
+        } catch (e) {
+            document.getElementById("defStatus").textContent = "Error: " + (e && e.message ? e.message : e);
+        } finally {
+            setBusy("applyPolDefaultsBtn", false);
+        }
+    };
+
+    window.downloadBackup = async function () {
+        var apiClient = getApiClient();
+        setBusy("backupBtn", true, "Preparing...");
+        try {
+            var url = apiClient.getUrl("BulkUserManager/Backup");
+            var token = apiClient.accessToken();
+            var response = await fetch(url, {
+                method: "GET",
+                headers: { "Authorization": "MediaBrowser Token=" + token }
+            });
+            if (!response.ok) {
+                throw new Error("HTTP " + response.status + " " + response.statusText);
+            }
+            var blob = await response.blob();
+            var stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+            var a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "bulk-user-manager-backup-" + stamp + ".json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+            document.getElementById("defStatus").textContent = "Backup downloaded.";
+        } catch (e) {
+            document.getElementById("defStatus").textContent = "Backup failed: " + (e && e.message ? e.message : e);
+        } finally {
+            setBusy("backupBtn", false);
+        }
+    };
+
+    document.getElementById("restoreFile").addEventListener("change", function () {
+        var hasFile = this.files && this.files.length > 0;
+        document.getElementById("restorePreviewBtn").disabled = !hasFile;
+        document.getElementById("restoreApplyBtn").disabled = true;
+        document.getElementById("restorePreview").style.display = "none";
+        document.getElementById("restoreStatus").textContent = "";
+        restoreBackup = null;
+    });
+
+    window.previewRestore = async function () {
+        var fileInput = document.getElementById("restoreFile");
+        if (!fileInput.files || fileInput.files.length === 0) {
+            document.getElementById("restoreStatus").textContent = "Choose a backup file first.";
+            return;
+        }
+        var file = fileInput.files[0];
+        setBusy("restorePreviewBtn", true, "Reading...");
+        try {
+            var text = await file.text();
+            var parsed = JSON.parse(text);
+            if (!parsed.Users || !Array.isArray(parsed.Users)) {
+                throw new Error("File does not look like a Bulk User Manager backup.");
+            }
+            restoreBackup = parsed;
+
+            var apiClient = getApiClient();
+            var result = await apiClient.ajax({
+                type: "POST",
+                url: apiClient.getUrl("BulkUserManager/RestorePreview"),
+                data: text,
+                contentType: "application/json",
+                dataType: "json"
+            });
+
+            var lines = [];
+            lines.push("Backup exported: " + (result.ExportedAt || "unknown"));
+            lines.push("Total users in backup: " + result.Total);
+            lines.push("");
+            lines.push("Will restore (" + result.ToRestore.length + "):");
+            if (result.ToRestore.length === 0) {
+                lines.push("  (none)");
+            } else {
+                result.ToRestore.forEach(function (u) { lines.push("  + " + u.Username); });
+            }
+            if (result.NotFound.length > 0) {
+                lines.push("");
+                lines.push("No longer exist, will be skipped (" + result.NotFound.length + "):");
+                result.NotFound.forEach(function (u) { lines.push("  - " + u.Username); });
+            }
+
+            var preview = document.getElementById("restorePreview");
+            preview.style.display = "block";
+            preview.textContent = lines.join("\n");
+            document.getElementById("restoreApplyBtn").disabled = (result.ToRestore.length === 0);
+            document.getElementById("restoreStatus").textContent = "";
+        } catch (e) {
+            document.getElementById("restoreStatus").textContent = "Preview failed: " + (e && e.message ? e.message : e);
+            document.getElementById("restoreApplyBtn").disabled = true;
+        } finally {
+            setBusy("restorePreviewBtn", false);
+        }
+    };
+
+    window.applyRestore = async function () {
+        if (!restoreBackup) {
+            document.getElementById("restoreStatus").textContent = "Preview a file first.";
+            return;
+        }
+        if (!confirm("This will overwrite the current configuration and permissions of every matching user with the values from the backup.\n\nThis cannot be undone.\n\nContinue?")) {
+            return;
+        }
+        var apiClient = getApiClient();
+        setBusy("restoreApplyBtn", true, "Restoring...");
+        try {
+            var text = JSON.stringify(restoreBackup);
+            var result = await apiClient.ajax({
+                type: "POST",
+                url: apiClient.getUrl("BulkUserManager/Restore"),
+                data: text,
+                contentType: "application/json",
+                dataType: "json"
+            });
+            var msg = "Restored " + result.Restored + " user(s)";
+            if (result.Skipped > 0) msg += ", skipped " + result.Skipped + " (no longer exist)";
+            if (result.Errors && result.Errors.length > 0) {
+                msg += ". Errors: " + result.Errors.join("; ");
+            }
+            document.getElementById("restoreStatus").textContent = msg;
+            loadUsersIntoList(apiClient, "userList").catch(function () {});
+            loadUsersIntoList(apiClient, "permUserList").catch(function () {});
+        } catch (e) {
+            document.getElementById("restoreStatus").textContent = "Restore failed: " + (e && e.message ? e.message : e);
+        } finally {
+            setBusy("restoreApplyBtn", false);
+        }
+    };
+
+    function boot() {
+        var apiClient = getApiClient();
+        console.log("BUM: boot, apiClient?", !!apiClient);
+        if (!apiClient) { setTimeout(boot, 200); return; }
+
+        loadCultures(apiClient).then(function () {
+            populateLangSelect("txtAudioLang", "(no change)");
+            populateLangSelect("txtSubLang", "(no change)");
+            populateLangSelect("defAudioLang", "(none)");
+            populateLangSelect("defSubLang", "(none)");
+
+            loadUsersIntoList(apiClient, "userList").catch(function (e) { console.error("BUM loadUsers", e); });
+            loadUsersIntoList(apiClient, "permUserList").catch(function (e) { console.error("BUM loadPermUsers", e); });
+
+            loadLibraries(apiClient)
+                .catch(function (e) { console.error("BUM loadLibraries", e); })
+                .then(function () { return loadDefaults(apiClient); })
+                .catch(function (e) { console.error("BUM loadDefaults", e); });
+        });
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", boot);
+    } else {
+        boot();
+    }
+})();
+</script>
+
+</body>
+</html>
